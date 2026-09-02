@@ -12,4 +12,6 @@ dist/
 .pytest_cache/
 .coverage
 htmlcov/
-.claude/
+# .claude/ 는 추적한다 (CLAUDE.md, 설계 문서, 스프린트 계획서)
+# 단 settings.local.json 은 머신별 로컬 설정이므로 제외
+.claude/settings.local.json

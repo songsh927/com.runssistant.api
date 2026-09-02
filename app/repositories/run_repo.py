@@ -1,7 +1,7 @@
 from datetime import UTC, date, datetime
 from typing import Any
 
-from sqlalchemy import and_, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.run import Run
@@ -45,6 +45,14 @@ class RunRepository:
             .offset(offset)
         )
         return list(result.scalars().all())
+
+    async def count(self, session: AsyncSession, user_id: str) -> int:
+        result = await session.execute(
+            select(func.count())
+            .select_from(Run)
+            .where(and_(Run.user_id == user_id, Run.deleted_at.is_(None)))
+        )
+        return result.scalar_one()
 
     async def update(self, session: AsyncSession, run: Run, data: dict[str, Any]) -> Run:
         for key, value in data.items():

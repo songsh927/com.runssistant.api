@@ -192,6 +192,54 @@ class PlanService:
 
         await _plan_repo.update(session, plan, {"planned_sessions": sessions})
 
+    async def apply_recommendation(
+        self,
+        session: AsyncSession,
+        user_id: str,
+        recommendation: dict[str, Any],
+        constraints: list[dict[str, str]],
+    ) -> None:
+        today = date.today()
+        week_start = get_monday(today)
+        plan = await self.get_or_create(session, user_id, week_start)
+
+        day = _DAY_NAMES[today.weekday()]
+        sessions = [dict(s) for s in plan.planned_sessions]
+
+        candidate_idx = next(
+            (i for i, s in enumerate(sessions) if s["day"] == day and s["status"] == "pending"),
+            None,
+        )
+        recommended_session = {
+            "type": recommendation["run_type"],
+            "distance_km": recommendation["distance_km"],
+            "pace_range": recommendation.get("pace_range"),
+            "status": "recommended",
+        }
+
+        if candidate_idx is not None:
+            sessions[candidate_idx] = {**sessions[candidate_idx], **recommended_session}
+        else:
+            sessions.append(
+                {
+                    "day": day,
+                    "actual_distance_km": None,
+                    "run_id": None,
+                    "unplanned": True,
+                    **recommended_session,
+                }
+            )
+
+        adjustments_log = [dict(a) for a in plan.adjustments_log]
+        for c in constraints:
+            adjustments_log.append(
+                {"date": today.isoformat(), "reason": c["code"], "change": c["message"]}
+            )
+
+        await _plan_repo.update(
+            session, plan, {"planned_sessions": sessions, "adjustments_log": adjustments_log}
+        )
+
     async def drop_untouched_current(self, session: AsyncSession, user_id: str) -> None:
         week_start = get_monday(date.today())
         plan = await _plan_repo.get_by_week(session, user_id, week_start)

@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from app.api import auth, goals, plans, runs, stats
+from app.api import auth, coach, goals, plans, runs, stats
 from app.core.exceptions import AppException
 
 app = FastAPI(title="Running Coach API", version="0.1.0")
@@ -20,6 +20,7 @@ app.include_router(runs.router)
 app.include_router(stats.router)
 app.include_router(goals.router)
 app.include_router(plans.router)
+app.include_router(coach.router)
 
 
 @app.get("/health")
