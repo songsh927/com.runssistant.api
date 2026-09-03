@@ -3,8 +3,11 @@ from datetime import date, timedelta
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import update
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.pace import get_monday
+from app.models.weekly_plan import WeeklyPlan
 from app.services.plan_service import build_planned_sessions
 
 _DAY_OFFSET = {"mon": 0, "tue": 1, "wed": 2, "thu": 3, "fri": 4, "sat": 5, "sun": 6}
@@ -239,3 +242,59 @@ async def test_other_user_cannot_access_plan(client: AsyncClient) -> None:
 
     resp = await client.get(f"/plans/{monday}", headers=headers2)
     assert resp.status_code == 404
+
+
+def test_planned_session_accepts_design_pace_range_shape() -> None:
+    """설계 §5.5 / §7.3이 LLM 출력으로 강제하는 {min, max} 형태를 받아들여야 한다."""
+    from app.schemas.plan import PlannedSession
+
+    s = PlannedSession(
+        day="thu",
+        type="tempo",
+        distance_km=6.0,
+        status="recommended",
+        pace_range={"min": "5:20/km", "max": "5:40/km"},
+    )
+    assert s.pace_range is not None
+    assert s.pace_range.min == "5:20/km"
+    assert s.pace_range.max == "5:40/km"
+
+
+def test_planned_session_rejects_malformed_pace_range() -> None:
+    """min/max가 없는 pace_range는 거부해야 Sprint 3의 잘못된 LLM 출력을 경계에서 잡는다."""
+    from pydantic import ValidationError
+
+    from app.schemas.plan import PlannedSession
+
+    with pytest.raises(ValidationError):
+        PlannedSession(
+            day="thu",
+            type="tempo",
+            distance_km=6.0,
+            status="recommended",
+            pace_range={"foo": "bar"},
+        )
+
+
+@pytest.mark.asyncio
+async def test_plan_round_trips_pace_range_through_jsonb(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """Sprint 3 Plan Updater가 기록할 dict 형태가 JSONB 왕복 후에도 유지되는지 확인."""
+    headers = await _signup(client)
+    await _set_weekly_goal(client, headers, 30)
+    plan = (await client.get("/plans/current", headers=headers)).json()
+
+    sessions = [dict(s) for s in plan["planned_sessions"]]
+    sessions[0] = {**sessions[0], "pace_range": {"min": "6:00/km", "max": "6:30/km"}}
+
+    await db_session.execute(
+        update(WeeklyPlan).where(WeeklyPlan.id == plan["id"]).values(planned_sessions=sessions)
+    )
+    await db_session.commit()
+
+    refetched = (await client.get("/plans/current", headers=headers)).json()
+    assert refetched["planned_sessions"][0]["pace_range"] == {
+        "min": "6:00/km",
+        "max": "6:30/km",
+    }
