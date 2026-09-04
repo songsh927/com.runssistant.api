@@ -9,6 +9,7 @@ from app.dependencies import get_coach_graph
 from app.graph.coach_graph import build_coach_graph
 from app.llm.base import LLMProvider, LLMResponse
 from app.main import app
+from tests.conftest import _DEFAULT_PROFILE
 
 _DAY_NAMES = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 
@@ -72,7 +73,9 @@ def _make_user() -> dict[str, str]:
 async def _signup(client: AsyncClient) -> dict[str, str]:
     resp = await client.post("/auth/signup", json=_make_user())
     token = resp.json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+    headers = {"Authorization": f"Bearer {token}"}
+    await client.post("/users/profile", json=_DEFAULT_PROFILE, headers=headers)
+    return headers
 
 
 async def _set_weekly_goal(client: AsyncClient, headers: dict[str, str], km: float) -> None:
@@ -223,7 +226,7 @@ async def test_feedback_invalid_rating_rejected(client: AsyncClient) -> None:
         json={"coaching_session_id": session_id, "rating": 6},
         headers=headers,
     )
-    assert resp.status_code == 422
+    assert resp.status_code == 400
 
 
 @pytest.mark.asyncio

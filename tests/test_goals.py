@@ -81,7 +81,7 @@ async def test_create_goal_abandons_previous_active(client: AsyncClient) -> None
 async def test_create_weekly_volume_goal_without_target_rejected(client: AsyncClient) -> None:
     headers = await _signup(client)
     resp = await client.post("/goals", json={"goal_type": "weekly_volume"}, headers=headers)
-    assert resp.status_code == 422
+    assert resp.status_code == 400
 
 
 @pytest.mark.asyncio

@@ -33,3 +33,25 @@ class ValidationError(AppException):
 class CoachingUnavailable(AppException):
     def __init__(self, message: str = "AI 코칭 서비스를 사용할 수 없습니다.") -> None:
         super().__init__(code="COACHING_UNAVAILABLE", message=message, http_status=503)
+
+
+class RateLimited(AppException):
+    def __init__(self, message: str = "요청 한도를 초과했습니다. 잠시 후 다시 시도하세요.") -> None:
+        super().__init__(code="RATE_LIMITED", message=message, http_status=429)
+
+
+class ProfileAlreadyExists(AppException):
+    def __init__(
+        self, message: str = "이미 온보딩이 완료되었습니다. PATCH /users/profile을 사용하세요."
+    ) -> None:
+        super().__init__(code="PROFILE_ALREADY_EXISTS", message=message, http_status=409)
+
+
+class ProfileNotFound(AppException):
+    def __init__(self, message: str = "프로필이 없습니다. 온보딩을 먼저 완료하세요.") -> None:
+        super().__init__(code="PROFILE_NOT_FOUND", message=message, http_status=404)
+
+
+class OnboardingRequired(AppException):
+    def __init__(self, message: str = "온보딩을 먼저 완료해야 합니다.") -> None:
+        super().__init__(code="ONBOARDING_REQUIRED", message=message, http_status=403)

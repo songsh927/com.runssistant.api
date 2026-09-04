@@ -1,0 +1,56 @@
+name: Deploy
+
+on:
+  # 초기엔 수동 트리거로만 실행 — AWS 크레덴셜·ECR URI 설정 완료 후 push 트리거로 전환
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "배포 환경"
+        required: true
+        default: "prod"
+        type: choice
+        options: [prod]
+
+permissions:
+  id-token: write   # OIDC
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Install SAM CLI
+        run: pip install aws-sam-cli
+
+      - name: Run DB migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          pip install uv
+          uv sync
+          uv run alembic upgrade head
+
+      - name: SAM Build
+        run: sam build
+
+      - name: SAM Deploy
+        run: |
+          sam deploy \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --image-repositories "RunningCoachFunction=${{ secrets.ECR_REPO_URI }}"

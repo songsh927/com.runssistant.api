@@ -128,7 +128,10 @@ def _check_injury_risk(recent_runs: list[dict[str, Any]]) -> dict[str, str] | No
     return None
 
 
-def _check_beginner_guard(total_run_count: int) -> dict[str, str] | None:
+def _check_beginner_guard(total_run_count: int, has_profile: bool) -> dict[str, str] | None:
+    # 프로필이 있으면 experience_level 기반 PROFILE_BEGINNER_GUARD가 처리한다 (6-3 통합)
+    if has_profile:
+        return None
     if total_run_count < 10:
         return {
             "code": "BEGINNER_GUARD",
@@ -138,6 +141,7 @@ def _check_beginner_guard(total_run_count: int) -> dict[str, str] | None:
 
 
 def evaluate_rules(context: dict[str, Any]) -> list[dict[str, str]]:
+    has_profile = bool(context.get("runner_profile"))
     checks = [
         _check_volume_exceeded(context["weekly"]),
         _check_hard_days_limit(context["recent_runs"]),
@@ -146,6 +150,6 @@ def evaluate_rules(context: dict[str, Any]) -> list[dict[str, str]]:
         _check_heat_alert(context.get("weather")),
         _check_cold_alert(context.get("weather")),
         _check_injury_risk(context["recent_runs"]),
-        _check_beginner_guard(context["total_run_count"]),
+        _check_beginner_guard(context["total_run_count"], has_profile),
     ]
     return [c for c in checks if c is not None]

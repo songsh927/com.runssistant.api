@@ -1,0 +1,104 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Running Coach API — FastAPI + Mangum on AWS Lambda
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 512
+    Environment:
+      Variables:
+        ENV: "prod"
+        LOG_LEVEL: "INFO"
+        LLM_PROVIDER: "bedrock"
+        BEDROCK_MODEL_ID: !Ref BedrockModelId
+        BEDROCK_REGION: !Ref BedrockRegion
+
+Parameters:
+  DatabaseUrl:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /runcoach/prod/DATABASE_URL
+    Description: "PostgreSQL async URL (asyncpg). SSM Parameter Store 참조."
+
+  RedisUrl:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /runcoach/prod/REDIS_URL
+    Description: "ElastiCache Redis URL. SSM Parameter Store 참조."
+
+  JwtSecretKey:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /runcoach/prod/JWT_SECRET_KEY
+    Description: "JWT 서명 키. SSM Parameter Store 참조."
+
+  OWMApiKey:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /runcoach/prod/OWM_API_KEY
+    Description: "OpenWeatherMap API 키. SSM Parameter Store 참조."
+
+  BedrockModelId:
+    Type: String
+    Default: "amazon.nova-lite-v1:0"
+
+  BedrockRegion:
+    Type: String
+    Default: "us-east-1"
+
+  CorsOrigins:
+    Type: String
+    Default: '["https://your-frontend.example.com"]'
+    Description: "CORS 허용 Origin 목록 (JSON 배열 형식)"
+
+  # VPC 설정 (RDS·ElastiCache 접근 시 필요)
+  # VPC Lambda ↔ 외부 API(OpenWeatherMap, Bedrock)는 NAT Gateway 또는 VPC Endpoint 필요
+  # VpcSubnetIds:
+  #   Type: List<AWS::EC2::Subnet::Id>
+  # VpcSecurityGroupIds:
+  #   Type: List<AWS::EC2::SecurityGroup::Id>
+
+Resources:
+  RunningCoachFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      # VPC 설정 필요 시 주석 해제
+      # VpcConfig:
+      #   SubnetIds: !Ref VpcSubnetIds
+      #   SecurityGroupIds: !Ref VpcSecurityGroupIds
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          REDIS_URL: !Ref RedisUrl
+          JWT_SECRET_KEY: !Ref JwtSecretKey
+          OWM_API_KEY: !Ref OWMApiKey
+          CORS_ORIGINS: !Ref CorsOrigins
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        # Bedrock 호출 권한 (프로덕션)
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+              Resource: "*"
+      Events:
+        ApiProxy:
+          Type: HttpApi
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+        ApiRoot:
+          Type: HttpApi
+          Properties:
+            Path: /
+            Method: ANY
+    Metadata:
+      DockerfileLocation: Dockerfile
+      DockerContext: .
+      DockerTag: running-coach-api
+
+Outputs:
+  ApiUrl:
+    Description: "API Gateway URL"
+    Value: !Sub "https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com"
+  FunctionArn:
+    Description: "Lambda Function ARN"
+    Value: !GetAtt RunningCoachFunction.Arn

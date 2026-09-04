@@ -10,7 +10,7 @@ CoachRunType = Literal["easy", "tempo", "interval", "long_run", "recovery", "res
 
 class RecommendRequest(BaseModel):
     rpe: int | None = Field(default=None, ge=1, le=10)
-    notes: str | None = None
+    notes: str | None = Field(default=None, max_length=500)
 
 
 class CoachRecommendation(BaseModel):
