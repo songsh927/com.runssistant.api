@@ -52,7 +52,7 @@ async def test_create_run_success(client: AsyncClient) -> None:
 async def test_create_run_invalid_run_type(client: AsyncClient) -> None:
     headers = await _signup(client)
     resp = await client.post("/runs", json=_make_run(run_type="sprint"), headers=headers)
-    assert resp.status_code == 422
+    assert resp.status_code == 400
 
 
 @pytest.mark.asyncio

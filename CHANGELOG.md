@@ -11,11 +11,79 @@
 
 ## [Unreleased]
 
-### 예정 (Sprint 4 — polish + deploy)
+---
 
-- AWS Lambda + API Gateway 배포 (Mangum 어댑터)
-- Rate limiting (Redis 기반) 전면 적용
-- 관측성/로깅 정비 및 운영 하드닝
+## [0.2.0] — 2026-09-04
+
+Sprint 4 완료. 프로덕션 배포 가능 상태로 격상.
+전체 API가 AWS Lambda(Mangum)에서 동작하며, 에러 봉투 통일·rate limiting·
+structlog 로깅·GitHub Actions CI/CD를 갖춥니다.
+
+### Sprint 4 — Polish + Deploy
+
+**에러 핸들링 통일**
+- `app/core/error_handlers.py` 신규: `RequestValidationError` → `VALIDATION_ERROR` 400,
+  `HTTPException` → 코드 매핑, 미처리 `Exception` → `INTERNAL_ERROR` 500
+  (스택트레이스는 로그에만, 응답에 미포함)
+- `RateLimited` 예외 추가 (`code="RATE_LIMITED"`, HTTP 429)
+- 모든 에러 응답이 `{"error": {"code", "message", "details"}}` 봉투로 통일
+
+**앱 구조 개선**
+- `create_app()` 팩토리 도입: CORS·미들웨어·에러 핸들러·라우터를 한 곳에서 조립
+- `CORSMiddleware` 추가 (`CORS_ORIGINS` 환경 변수로 환경별 분리)
+- lifespan 이벤트: 시작 시 Redis 연결 확인, 종료 시 클린업
+
+**Request validation 강화**
+- `GoalCreate.race_date`: 오늘 이후 날짜만 허용 (`@field_validator`)
+- `RecommendRequest.notes`: `max_length=500` 제약 추가
+- Pydantic 검증 실패가 자동으로 `VALIDATION_ERROR` 봉투로 직렬화됨
+
+**Rate Limiting**
+- `app/core/rate_limit.py`: Redis 고정 윈도우(1분) 미들웨어
+  - 전역 기본: 분당 60회 (`RATE_LIMIT_DEFAULT`)
+  - `/coach/recommend` 강화: 분당 5회 (`RATE_LIMIT_COACH`) — LLM 비용 방어
+  - Redis 장애 시 fail-open (요청 통과 + 경고 로그)
+
+**구조적 로깅 (structlog)**
+- `app/core/logging.py`: `configure_logging()` — `ENV=prod` 이면 JSON, 로컬은 콘솔
+- `X-Request-ID` 미들웨어: 모든 요청에 UUID 생성 → 응답 헤더 반영 + structlog 컨텍스트 바인딩
+
+**Health / Readiness**
+- `GET /readiness` 신규: DB(`SELECT 1`) + Redis(`PING`) 체크, 실패 시 503
+- `GET /health` (liveness): 기존 유지, 빠른 응답
+
+**Lambda 패키징**
+- `app/lambda_handler.py`: `Mangum(create_app())` AWS Lambda 진입점
+- `Dockerfile`: `public.ecr.aws/lambda/python:3.12` 베이스 컨테이너 이미지
+- `.dockerignore`: tests·.venv·.env 제외
+
+**인프라 (AWS SAM)**
+- `template.yaml`: Lambda 함수 + API Gateway(HttpApi) 프록시 정의
+  - 환경 변수는 SSM Parameter Store 참조 (하드코딩 금지)
+  - Bedrock `InvokeModel` IAM 정책 포함
+  - VPC 설정 (RDS/ElastiCache 접근) 주석으로 가이드
+- `samconfig.toml`: `sam build`·`sam deploy` 기본 파라미터
+
+**CI/CD (GitHub Actions)**
+- `.github/workflows/ci.yml`: PR·브랜치 푸시마다
+  `ruff format --check` → `ruff check` → `mypy` → `pytest --cov=app --cov-fail-under=80`
+  (서비스 컨테이너: PostgreSQL 15 + Redis 7)
+- `.github/workflows/deploy.yml`: `workflow_dispatch` 수동 트리거
+  → `alembic upgrade head` → `sam build` → `sam deploy` (OIDC)
+
+**의존성 추가**
+- `structlog>=24.0.0` (구조적 로깅)
+- `mangum>=0.17.0` (ASGI→Lambda 어댑터)
+- `pytest-cov>=5.0.0` (커버리지 리포트)
+
+**설정 확장 (`app/config.py`)**
+- `ENV`, `LOG_LEVEL`, `CORS_ORIGINS`, `RATE_LIMIT_DEFAULT`, `RATE_LIMIT_COACH` 추가
+
+**테스트**
+- `tests/test_error_handlers.py`: 에러 봉투·`X-Request-ID` 헤더 검증
+- `tests/test_health.py`: `/health`·`/readiness` 검증
+- `tests/test_rate_limit.py`: 429 반환·Redis 장애 fail-open 검증
+- 전체 105 테스트 통과, 커버리지 **85%** (기준 80%+)
 
 ---
 

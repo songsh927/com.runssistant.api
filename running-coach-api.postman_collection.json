@@ -1,0 +1,585 @@
+{
+  "info": {
+    "_postman_id": "rc-api-collection-v1",
+    "name": "Running Coach API",
+    "description": "Running Coach API 전체 엔드포인트 컬렉션.\n\n**시작 순서:**\n1. Auth > Signup 으로 계정 생성\n2. Auth > Login 실행 → `token` 변수 자동 저장\n3. 이후 모든 요청은 저장된 토큰으로 자동 인증\n\n**컬렉션 변수:**\n- `baseUrl` — 서버 주소 (기본: http://localhost:8000)\n- `token` — Login 성공 시 자동 저장\n- `runId` — 러닝 기록 생성 시 자동 저장\n- `goalId` — 목표 생성 시 자동 저장\n- `coachingSessionId` — 코치 추천 시 자동 저장",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string",
+      "description": "Login 성공 시 자동 저장됨"
+    },
+    {
+      "key": "runId",
+      "value": "",
+      "type": "string",
+      "description": "POST /runs 성공 시 자동 저장됨"
+    },
+    {
+      "key": "goalId",
+      "value": "",
+      "type": "string",
+      "description": "POST /goals 성공 시 자동 저장됨"
+    },
+    {
+      "key": "coachingSessionId",
+      "value": "",
+      "type": "string",
+      "description": "POST /coach/recommend 성공 시 자동 저장됨"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            },
+            "description": "서버 상태 확인. 인증 불필요."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Signup",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"runner@example.com\",\n  \"password\": \"password123\",\n  \"name\": \"홍길동\",\n  \"location\": \"Seoul,KR\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/signup",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "signup"]
+            },
+            "description": "회원가입. password는 최소 8자.\nlocation은 OpenWeatherMap 도시명 형식 (예: Seoul,KR) — 날씨 자동 연동에 사용."
+          },
+          "response": []
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "    pm.collectionVariables.set('token', body.access_token);",
+                  "    console.log('token saved:', body.access_token.substring(0, 20) + '...');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"runner@example.com\",\n  \"password\": \"password123\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "로그인. 성공 시 access_token이 컬렉션 변수 `token`에 자동 저장됨."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Me",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "me"]
+            },
+            "description": "현재 로그인된 사용자 정보 조회."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Runs",
+      "item": [
+        {
+          "name": "Create Run",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const body = pm.response.json();",
+                  "    pm.collectionVariables.set('runId', body.id);",
+                  "    console.log('runId saved:', body.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"run_date\": \"2026-09-03\",\n  \"distance_km\": 10.5,\n  \"duration_sec\": 3780,\n  \"run_type\": \"easy\",\n  \"rpe\": 5,\n  \"notes\": \"아침 이지런, 컨디션 좋음\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/runs",
+              "host": ["{{baseUrl}}"],
+              "path": ["runs"]
+            },
+            "description": "러닝 기록 생성. 성공 시 `runId` 자동 저장.\n\n**run_type:** easy | tempo | interval | long_run | race | recovery\n**rpe:** 1~10 (선택)\n**duration_sec:** 초 단위 (3780 = 63분)\n\n날씨(weather_snapshot)는 서버가 사용자 location 기반으로 자동 수집."
+          },
+          "response": []
+        },
+        {
+          "name": "List Runs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/runs?limit=20&offset=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["runs"],
+              "query": [
+                { "key": "from", "value": "2026-09-01", "disabled": true, "description": "시작 날짜 (YYYY-MM-DD)" },
+                { "key": "to", "value": "2026-09-30", "disabled": true, "description": "종료 날짜 (YYYY-MM-DD)" },
+                { "key": "limit", "value": "20", "description": "최대 반환 수 (1~100)" },
+                { "key": "offset", "value": "0", "description": "페이지 오프셋" }
+              ]
+            },
+            "description": "러닝 목록 조회. from/to 날짜 필터 선택 가능."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Run",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/runs/{{runId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["runs", "{{runId}}"]
+            },
+            "description": "특정 러닝 기록 조회. `runId` 변수 필요."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Run",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"distance_km\": 11.0,\n  \"duration_sec\": 3900,\n  \"rpe\": 6,\n  \"notes\": \"생각보다 힘들었음\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/runs/{{runId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["runs", "{{runId}}"]
+            },
+            "description": "러닝 기록 수정. 전달한 필드만 업데이트됨."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Run",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/runs/{{runId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["runs", "{{runId}}"]
+            },
+            "description": "러닝 기록 삭제. 응답 없음 (204)."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Stats",
+      "item": [
+        {
+          "name": "Weekly Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/stats/weekly",
+              "host": ["{{baseUrl}}"],
+              "path": ["stats", "weekly"]
+            },
+            "description": "이번 주 통계. 총 거리, 세션 수, 평균 페이스, 목표 달성률 등."
+          },
+          "response": []
+        },
+        {
+          "name": "Trend",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/stats/trend?weeks=8",
+              "host": ["{{baseUrl}}"],
+              "path": ["stats", "trend"],
+              "query": [
+                { "key": "weeks", "value": "8", "description": "조회할 주 수" }
+              ]
+            },
+            "description": "주별 러닝 트렌드 (거리, 세션 수, 평균 페이스)."
+          },
+          "response": []
+        },
+        {
+          "name": "Personal Bests",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/stats/personal-bests",
+              "host": ["{{baseUrl}}"],
+              "path": ["stats", "personal-bests"]
+            },
+            "description": "거리 구간별 최고 페이스 기록 (5K, 10K, 하프, 풀 등)."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Goals",
+      "item": [
+        {
+          "name": "Create Goal — Weekly Volume",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const body = pm.response.json();",
+                  "    pm.collectionVariables.set('goalId', body.id);",
+                  "    console.log('goalId saved:', body.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"goal_type\": \"weekly_volume\",\n  \"weekly_km_target\": 50.0\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/goals",
+              "host": ["{{baseUrl}}"],
+              "path": ["goals"]
+            },
+            "description": "주간 목표 거리 설정. `weekly_km_target` 필수."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Goal — Race",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const body = pm.response.json();",
+                  "    pm.collectionVariables.set('goalId', body.id);",
+                  "    console.log('goalId saved:', body.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"goal_type\": \"race\",\n  \"race_name\": \"서울 마라톤 2027\",\n  \"race_date\": \"2027-03-21\",\n  \"race_distance_km\": 42.195,\n  \"race_target_time\": 14400\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/goals",
+              "host": ["{{baseUrl}}"],
+              "path": ["goals"]
+            },
+            "description": "대회 목표 설정. race_name, race_date, race_distance_km 필수.\nrace_target_time은 초 단위 (14400 = 4시간)."
+          },
+          "response": []
+        },
+        {
+          "name": "List Goals",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/goals",
+              "host": ["{{baseUrl}}"],
+              "path": ["goals"],
+              "query": [
+                { "key": "status", "value": "active", "disabled": true, "description": "active | completed | abandoned" }
+              ]
+            },
+            "description": "목표 목록 조회. status 필터 선택 가능."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Active Goal",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/goals/active",
+              "host": ["{{baseUrl}}"],
+              "path": ["goals", "active"]
+            },
+            "description": "현재 active 상태 목표 조회."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Goal",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"weekly_km_target\": 55.0\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/goals/{{goalId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["goals", "{{goalId}}"]
+            },
+            "description": "목표 수치 수정. 전달한 필드만 업데이트됨."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Goal Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"completed\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/goals/{{goalId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["goals", "{{goalId}}", "status"]
+            },
+            "description": "목표 상태 변경. status: completed | abandoned"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Plans",
+      "item": [
+        {
+          "name": "Get Current Weekly Plan",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/plans/current",
+              "host": ["{{baseUrl}}"],
+              "path": ["plans", "current"]
+            },
+            "description": "이번 주 플랜 조회. 코치 추천 또는 러닝 기록 시 자동 생성/조정됨."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Plan History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/plans/history",
+              "host": ["{{baseUrl}}"],
+              "path": ["plans", "history"]
+            },
+            "description": "지난 주간 플랜 목록 조회."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Plan by Week",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/plans/2026-09-01",
+              "host": ["{{baseUrl}}"],
+              "path": ["plans", "2026-09-01"]
+            },
+            "description": "특정 주의 플랜 조회. week_start는 해당 주 월요일 날짜 (YYYY-MM-DD)."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Coach",
+      "item": [
+        {
+          "name": "Recommend Session",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "    pm.collectionVariables.set('coachingSessionId', body.session_id);",
+                  "    console.log('coachingSessionId saved:', body.session_id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rpe\": 6,\n  \"notes\": \"어제 조금 힘들었음, 오늘은 가볍게 뛰고 싶음\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/coach/recommend",
+              "host": ["{{baseUrl}}"],
+              "path": ["coach", "recommend"]
+            },
+            "description": "AI 오늘의 세션 추천.\n\n**흐름:**\n1. Context Assembler: 주간 볼륨, 최근 러닝, 날씨 수집\n2. Rule Engine: 안전 제약 결정론적 계산 (볼륨 가드, 회복, 테이퍼, 폭염/한파)\n3. LLM Coach: 제약 안에서 세션 디테일 생성\n4. Plan Updater: 주간 플랜 자동 조정 + coaching_sessions 저장\n\nrpe, notes 모두 선택. 최근 피로도와 메모를 전달하면 더 정확한 추천."
+          },
+          "response": []
+        },
+        {
+          "name": "Submit Feedback",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"coaching_session_id\": \"{{coachingSessionId}}\",\n  \"rating\": 4\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/coach/feedback",
+              "host": ["{{baseUrl}}"],
+              "path": ["coach", "feedback"]
+            },
+            "description": "코칭 세션에 피드백 제출. rating: 1~5점."
+          },
+          "response": []
+        },
+        {
+          "name": "Coaching History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/coach/history?limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["coach", "history"],
+              "query": [
+                { "key": "limit", "value": "10", "description": "최대 반환 수 (1~100)" }
+              ]
+            },
+            "description": "지난 코칭 세션 목록 조회."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

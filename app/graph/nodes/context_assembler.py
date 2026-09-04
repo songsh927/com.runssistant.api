@@ -5,15 +5,23 @@ from app.core.pace import get_monday
 from app.graph.state import CoachState
 from app.repositories.goal_repo import GoalRepository
 from app.repositories.run_repo import RunRepository
+from app.repositories.user_repo import UserRepository
 from app.services.plan_service import PlanService
 from app.services.stats_service import StatsService
 
 _goal_repo = GoalRepository()
 _run_repo = RunRepository()
+_user_repo = UserRepository()
 _stats_svc = StatsService()
 _plan_svc = PlanService()
 
 _RECENT_RUNS_WINDOW_DAYS = 14
+
+_DAY_MAP = {0: "mon", 1: "tue", 2: "wed", 3: "thu", 4: "fri", 5: "sat", 6: "sun"}
+
+
+def _is_today_available(available_days: list[str]) -> bool:
+    return _DAY_MAP[date.today().weekday()] in available_days
 
 
 async def assemble_context(state: CoachState) -> dict[str, Any]:
@@ -40,6 +48,26 @@ async def assemble_context(state: CoachState) -> dict[str, Any]:
     ]
 
     total_run_count = await _run_repo.count(session, user_id)
+
+    user = await _user_repo.get(session, user_id)
+    raw_profile = user.runner_profile if user else None
+    runner_profile_context: dict[str, Any] | None = None
+    is_available_day = True
+    if raw_profile:
+        training = raw_profile.get("training", {})
+        available_days: list[str] = training.get("available_days", [])
+        runner_profile_context = {
+            "experience_level": raw_profile.get("experience", {}).get("level"),
+            "runs_per_week": raw_profile.get("experience", {}).get("runs_per_week"),
+            "longest_distance": raw_profile.get("experience", {}).get("longest_distance"),
+            "preferred_types": training.get("preferred_types", []),
+            "available_days": available_days,
+            "time_per_session": training.get("time_per_session"),
+            "cross_training": raw_profile.get("cross_training", []),
+            "injuries": raw_profile.get("injuries", {}).get("status", {}),
+            "injury_history": raw_profile.get("injuries", {}).get("history"),
+        }
+        is_available_day = _is_today_available(available_days) if available_days else True
 
     weather_snapshot = None
     if state["user_location"]:
@@ -79,5 +107,7 @@ async def assemble_context(state: CoachState) -> dict[str, Any]:
         "goal": goal_context,
         "weather": weather_snapshot,
         "total_run_count": total_run_count,
+        "runner_profile": runner_profile_context,
+        "is_available_day": is_available_day,
     }
     return {"context": context}

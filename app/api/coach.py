@@ -3,7 +3,13 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_coach_graph, get_current_user, get_db, get_weather_service
+from app.dependencies import (
+    get_coach_graph,
+    get_current_user,
+    get_db,
+    get_weather_service,
+    require_onboarding,
+)
 from app.models.user import User
 from app.schemas.coach import (
     CoachingSessionResponse,
@@ -22,7 +28,7 @@ _svc = CoachService()
 async def recommend(
     body: RecommendRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_onboarding),
     graph: Any = Depends(get_coach_graph),
     weather_service: WeatherService = Depends(get_weather_service),
 ) -> RecommendResponse:

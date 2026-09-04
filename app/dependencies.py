@@ -6,7 +6,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import Unauthorized
+from app.core.exceptions import OnboardingRequired, Unauthorized
 from app.core.security import decode_token
 from app.db import AsyncSessionLocal
 from app.graph.coach_graph import build_coach_graph
@@ -32,6 +32,14 @@ async def get_current_user(
     user = result.scalar_one_or_none()
     if user is None:
         raise Unauthorized()
+    return user
+
+
+async def require_onboarding(
+    user: User = Depends(get_current_user),
+) -> User:
+    if not user.onboarding_completed:
+        raise OnboardingRequired()
     return user
 
 

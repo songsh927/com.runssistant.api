@@ -32,6 +32,7 @@ async def signup(body: SignupRequest, db: AsyncSession = Depends(get_db)) -> Tok
 
 @router.post("/login", response_model=TokenResponse)
 async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)) -> TokenResponse:
+    # raise Unauthorized(body)
     result = await db.execute(select(User).where(User.email == body.email))
     user = result.scalar_one_or_none()
     if user is None or not verify_password(body.password, user.password):

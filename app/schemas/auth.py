@@ -25,6 +25,7 @@ class UserResponse(BaseModel):
     email: str
     name: str
     location: str | None
+    onboarding_completed: bool
     created_at: datetime
 
     model_config = {"from_attributes": True}

@@ -2,7 +2,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 GoalType = Literal["weekly_volume", "race"]
 GoalStatus = Literal["active", "completed", "abandoned"]
@@ -15,6 +15,13 @@ class GoalCreate(BaseModel):
     race_date: date | None = None
     race_target_time: int | None = Field(default=None, gt=0)
     race_distance_km: Decimal | None = Field(default=None, gt=0)
+
+    @field_validator("race_date")
+    @classmethod
+    def _race_date_must_be_future(cls, v: date | None) -> date | None:
+        if v is not None and v <= date.today():
+            raise ValueError("race_date는 오늘 이후여야 합니다.")
+        return v
 
     @model_validator(mode="after")
     def _check_required_fields(self) -> "GoalCreate":
