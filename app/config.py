@@ -16,9 +16,8 @@ class Settings(BaseSettings):
     # Redis
     REDIS_URL: str = "redis://localhost:6379"
 
-    # Rate limiting
-    RATE_LIMIT_DEFAULT: int = 60  # 분당 기본 요청 수
-    RATE_LIMIT_COACH: int = 5  # 분당 /coach/recommend 최대 요청 수
+    # Rate limiting — AI(LLM) 엔드포인트에만 적용된다 (app/core/rate_limit.py)
+    RATE_LIMIT_AI: int = 5  # 분당 AI 엔드포인트 최대 요청 수
 
     # JWT
     JWT_SECRET_KEY: str

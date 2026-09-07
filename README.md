@@ -1,19 +1,20 @@
-# Running Coach API
+# 런시스턴트 (Runssistant)
 
-수동 입력 기반 **AI 러닝 코칭 백엔드**. 디바이스 연동(Garmin / HealthKit / GPX) 없이
-코칭 가치를 먼저 검증하는 MVP입니다.
+러닝을 시작하는 건 쉽지만, 잘 뛰는 건 어렵습니다.
+오늘 몇 km를 뛰어야 하는지, 이지런과 인터벌을 어떻게 섞어야 하는지, 대회 전에 훈련량을 얼마나 줄여야 하는지 — 혼자서 판단하기엔 막막한 것들이 많습니다.
+
+런시스턴트(Runssistant)는 AI가 나의 체력, 컨디션, 목표를 분석해 오늘의 러닝을 추천하는 코칭 서비스입니다.
+초보 러너부터 상급 러너까지, 기록하고 코칭받으며 체계적으로 성장할 수 있습니다.
 
 핵심 흐름은 단순합니다 — 사용자가 러닝 기록과 목표를 입력하면,
-`POST /coach/recommend`가 **주간 볼륨·최근 러닝·현재 날씨**를 근거로
+`POST /coach/recommend`가 **주간 볼륨·최근 러닝·사용자의 프로필·현재 날씨**를 근거로
 오늘의 세션(이지런 / 인터벌 / 템포런 / 장거리 / 휴식)을 AI로 추천합니다.
 
 안전은 **코드로 결정론적으로 강제**합니다. LLM 호출 이전에 Rule Engine이
 볼륨 가드·회복·테이퍼·폭염/한파·부상 위험 등 하드 제약을 먼저 계산하고,
 LLM은 그 제약 *안에서* 세션 디테일과 동기 부여만 채웁니다.
 
-> 개발은 스프린트 단위로 진행됩니다. 자세한 릴리스 내역은
-> **[CHANGELOG.md](./CHANGELOG.md)** 를, 전체 설계는
-> [설계 문서](./.claude/plans/running-coach-server-design.md)를 참고하세요.
+> 프론트엔드는 별도 저장소(`com.runssistant.io`)에 있습니다.
 
 ---
 
@@ -54,11 +55,46 @@ app/
 └── graph/         # LangGraph 코칭 엔진
 ```
 
-**LangGraph 코칭 파이프라인** (`app/graph/coach_graph.py`):
+---
 
+## 코칭 그래프 (LangGraph)
+
+`build_coach_graph()` (`app/graph/coach_graph.py`)는 아래의 **선형 파이프라인**을
+컴파일합니다. 각 노드는 상태(`CoachState`)를 받아 일부 필드를 갱신하고 다음
+노드로 넘깁니다.
+
+<p align="center">
+  <img src="./docs/coach-graph.png" alt="build_coach_graph()가 생성하는 코칭 그래프" width="180">
+</p>
+
+> 위 이미지는 컴파일된 그래프를
+> `build_coach_graph(llm).get_graph().draw_mermaid_png()`로 렌더링한 것입니다.
+> 그래프 구조가 바뀌면 같은 명령으로 다시 생성하세요.
+
+```mermaid
+graph TD;
+    __start__([시작]):::se --> assemble_context
+    assemble_context[assemble_context<br/>컨텍스트 조립] --> apply_rules
+    apply_rules[apply_rules<br/>Rule Engine · 안전 제약] --> apply_profile_rules
+    apply_profile_rules[apply_profile_rules<br/>프로필 기반 제약] --> call_coach
+    call_coach[call_coach<br/>LLM 세션 생성] --> update_plan
+    update_plan[update_plan<br/>주간 플랜 반영 · 로그] --> format_response
+    format_response[format_response<br/>API 응답 정형화] --> __end__([끝]):::se
+    classDef se fill:#bfb6fc
 ```
-Context Assembler → Rule Engine → LLM Coach → Plan Updater → Response Formatter
-```
+
+| 순서 | 노드 | 역할 |
+|------|------|------|
+| 1 | **assemble_context** | 사용자의 주간 볼륨·최근 러닝·목표·현재 날씨·오늘 가용 여부를 모아 코칭 컨텍스트를 조립 |
+| 2 | **apply_rules** | Rule Engine. 볼륨 가드·회복·테이퍼·폭염/한파·부상 위험 등 **하드 제약을 결정론적으로 계산** (LLM 이전) |
+| 3 | **apply_profile_rules** | 러너 프로필(경력·주간 목표 등) 기반 추가 제약을 적용 |
+| 4 | **call_coach** | 제약 *안에서* LLM이 세션 상세와 동기 부여를 채워 정해진 JSON 형태로 생성 |
+| 5 | **update_plan** | 주간 플랜 변경을 반영하고 `coaching_sessions` 로그를 기록 |
+| 6 | **format_response** | 최종 API 응답 페이로드로 정형화 |
+
+**Rule Engine이 LLM보다 먼저 실행되는 것은 설계 의도**입니다. 안전은 코드에서
+결정론적으로 강제하고, LLM은 그 제약을 넘지 못합니다. 안전 로직을 프롬프트로
+옮기지 마세요.
 
 ---
 
@@ -172,5 +208,3 @@ Lambda 패키징/배포는 **Sprint 4**에서 정식화됩니다 — 진행 현�
 ## 문서
 
 - **[CHANGELOG.md](./CHANGELOG.md)** — 버전별 변경 이력 (버전 관리)
-- **[설계 문서](./.claude/plans/running-coach-server-design.md)** — 전체 아키텍처·데이터 모델·스프린트 계획
-- **[Sprint 0–1 진행 요약](./.claude/plans/progress-sprint-0-1.md)**
